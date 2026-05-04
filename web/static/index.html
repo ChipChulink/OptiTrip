@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OptiTrip Client</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f9fafb;
+            --card: #ffffff;
+            --text: #1f2937;
+            --border: #e5e7eb;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid var(--border); }
+        h2 { margin-top: 0; color: var(--primary); font-size: 1.25rem; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 0.9rem; }
+        input, select, textarea { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; }
+        button { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: opacity 0.2s; }
+        button:hover { opacity: 0.9; }
+        .result { margin-top: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; overflow-x: auto; }
+        .status { font-size: 0.8rem; margin-bottom: 10px; color: #6b7280; }
+        .full-width { grid-column: 1 / -1; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2>1. Города</h2>
+            <div class="form-group">
+                <label>Название</label>
+                <input type="text" id="cityName" placeholder="Санкт-Петербург">
+            </div>
+            <div class="form-group">
+                <label>Страна</label>
+                <input type="text" id="cityCountry" placeholder="Россия">
+            </div>
+            <button onclick="createCity()">Создать город</button>
+            <div id="cityStatus" class="status"></div>
+        </div>
+
+        <div class="card">
+            <h2>2. Места</h2>
+            <div class="form-group">
+                <label>ID Города</label>
+                <input type="text" id="placeCityId" placeholder="uuid">
+            </div>
+            <div class="form-group">
+                <label>Название</label>
+                <input type="text" id="placeName" placeholder="Эрмитаж">
+            </div>
+            <div class="form-group">
+                <label>Тип (museum, food, etc)</label>
+                <input type="text" id="placeType" placeholder="museum">
+            </div>
+            <div class="form-group">
+                <label>Стоимость</label>
+                <input type="number" id="placeCost" value="1000">
+            </div>
+            <div class="form-group">
+                <label>Длительность (мин)</label>
+                <input type="number" id="placeDuration" value="180">
+            </div>
+            <div class="form-group">
+                <label>Рейтинг (0-5)</label>
+                <input type="number" step="0.1" id="placeRating" value="4.5">
+            </div>
+            <button onclick="createPlace()">Добавить место</button>
+            <div id="placeStatus" class="status"></div>
+        </div>
+
+        <div class="card full-width">
+            <h2>3. Оптимизация маршрута</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label>ID Города</label>
+                    <input type="text" id="tripCityId" placeholder="uuid">
+                </div>
+                <div class="form-group">
+                    <label>Кол-во дней</label>
+                    <input type="number" id="tripDays" value="3">
+                </div>
+                <div class="form-group">
+                    <label>Бюджет</label>
+                    <input type="number" id="tripBudget" value="15000">
+                </div>
+                <div class="form-group">
+                    <label>Темп (relaxed, medium, intensive)</label>
+                    <select id="tripPace">
+                        <option value="relaxed">Спокойный</option>
+                        <option value="medium" selected>Средний</option>
+                        <option value="intensive">Насыщенный</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Интересы (JSON)</label>
+                    <textarea id="tripInterests">[{"category":"museum","weight":0.9}]</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Ограничения (JSON)</label>
+                    <textarea id="tripConstraints">{"max_places_per_day":4}</textarea>
+                </div>
+            </div>
+            <button onclick="optimizeTrip()">Рассчитать маршрут</button>
+            <div id="tripResult" class="result">Результат появится здесь...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v1';
+
+        async function createCity() {
+            const data = {
+                name: document.getElementById('cityName').value,
+                country: document.getElementById('cityCountry').value
+            };
+            try {
+                const res = await fetch(`${API_BASE}/cities`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const json = await res.json();
+                document.getElementById('cityStatus').innerText = 'Создан! ID: ' + json.id;
+                document.getElementById('placeCityId').value = json.id;
+                document.getElementById('tripCityId').value = json.id;
+            } catch (e) {
+                document.getElementById('cityStatus').innerText = 'Ошибка: ' + e;
+            }
+        }
+
+        async function createPlace() {
+            const data = {
+                city_id: document.getElementById('placeCityId').value,
+                name: document.getElementById('placeName').value,
+                type: document.getElementById('placeType').value,
+                base_cost: parseFloat(document.getElementById('placeCost').value),
+                avg_duration_minutes: parseInt(document.getElementById('placeDuration').value),
+                rating: parseFloat(document.getElementById('placeRating').value),
+                popularity_score: 0.8
+            };
+            try {
+                const res = await fetch(`${API_BASE}/places`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const json = await res.json();
+                document.getElementById('placeStatus').innerText = 'Добавлено!';
+            } catch (e) {
+                document.getElementById('placeStatus').innerText = 'Ошибка: ' + e;
+            }
+        }
+
+        async function optimizeTrip() {
+            const data = {
+                city_id: document.getElementById('tripCityId').value,
+                days_count: parseInt(document.getElementById('tripDays').value),
+                budget: parseFloat(document.getElementById('tripBudget').value),
+                pace: document.getElementById('tripPace').value,
+                interests: document.getElementById('tripInterests').value,
+                constraints: document.getElementById('tripConstraints').value
+            };
+            try {
+                const res = await fetch(`${API_BASE}/trips/optimize`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const json = await res.json();
+                document.getElementById('tripResult').innerText = JSON.stringify(json, null, 2);
+            } catch (e) {
+                document.getElementById('tripResult').innerText = 'Ошибка: ' + e;
+            }
+        }
+    </script>
+</body>
+</html>
