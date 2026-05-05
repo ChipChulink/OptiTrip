@@ -5,7 +5,7 @@ import (
 	"math"
 	"sort"
 
-	"optitrip/internal/domain"
+	"optitrip/internal/core/domain"
 )
 
 type PlaceScore struct {
@@ -123,23 +123,18 @@ func filterPlaces(places []domain.Place, constraints Constraints) []domain.Place
 func calculateRelevanceScore(place domain.Place, interests map[string]float64) float64 {
 	score := 0.0
 
-	// Interest match (weight 0.5)
 	if weight, ok := interests[place.Type]; ok {
 		score += weight * 0.5
 	}
 
-	// Rating (weight 0.2)
 	score += (place.Rating / 5.0) * 0.2
 
-	// Popularity (weight 0.15)
 	score += place.PopularityScore * 0.15
 
-	// Cost efficiency (weight 0.1)
 	if place.BaseCost > 0 {
 		score += (1.0 / math.Log(place.BaseCost+1)) * 0.1
 	}
 
-	// Duration appropriateness (weight 0.05)
 	if place.AvgDurationMins > 0 {
 		score += (1.0 / math.Log(float64(place.AvgDurationMins)+1)) * 0.05
 	}

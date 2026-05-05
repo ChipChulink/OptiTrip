@@ -5,11 +5,11 @@ import (
 	"log"
 	"net/http"
 
-	"optitrip/internal/api"
-	"optitrip/internal/cache"
-	"optitrip/internal/config"
-	"optitrip/internal/repository"
-	"optitrip/internal/service"
+	"optitrip/internal/core/service"
+	"optitrip/internal/infra/cache"
+	"optitrip/internal/infra/config"
+	"optitrip/internal/infra/repository"
+	api "optitrip/internal/delivery/api"
 )
 
 func main() {
@@ -32,9 +32,9 @@ func main() {
 	cityRepo := repository.NewCityRepo()
 	placeRepo := repository.NewPlaceRepo()
 	tripRepo := repository.NewTripRepo()
-	cache := cache.New(cfg.CacheTTL)
+	appCache := cache.New(cfg.CacheTTL)
 
-	tripService := service.NewTripService(placeRepo, tripRepo, cache)
+	tripService := service.NewTripService(placeRepo, tripRepo, appCache)
 	handler := api.NewHandler(tripService, cityRepo, placeRepo)
 	router := api.SetupRouter(handler)
 

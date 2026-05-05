@@ -6,8 +6,8 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"optitrip/internal/config"
-	"optitrip/internal/domain"
+	"optitrip/internal/core/domain"
+	"optitrip/internal/infra/config"
 )
 
 var DB *gorm.DB

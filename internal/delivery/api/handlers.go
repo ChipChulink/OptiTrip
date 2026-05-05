@@ -7,18 +7,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"optitrip/internal/domain"
-	"optitrip/internal/repository"
-	"optitrip/internal/service"
+	"optitrip/internal/core/domain"
+	"optitrip/internal/core/service"
 )
 
 type Handler struct {
 	tripService *service.TripService
-	cityRepo    *repository.CityRepo
-	placeRepo   *repository.PlaceRepo
+	cityRepo    domain.CityRepository
+	placeRepo   domain.PlaceRepository
 }
 
-func NewHandler(ts *service.TripService, cr *repository.CityRepo, pr *repository.PlaceRepo) *Handler {
+func NewHandler(ts *service.TripService, cr domain.CityRepository, pr domain.PlaceRepository) *Handler {
 	return &Handler{
 		tripService: ts,
 		cityRepo:    cr,

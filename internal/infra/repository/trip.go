@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"optitrip/internal/domain"
 	"github.com/google/uuid"
+	"optitrip/internal/core/domain"
 )
 
 type TripRepo struct{}

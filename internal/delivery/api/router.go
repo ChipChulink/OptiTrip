@@ -11,7 +11,6 @@ import (
 func SetupRouter(h *Handler) *mux.Router {
 	r := mux.NewRouter()
 
-	// Get absolute path to web/static
 	dir, _ := os.Getwd()
 	staticDir := filepath.Join(dir, "web", "static")
 
@@ -30,7 +29,6 @@ func SetupRouter(h *Handler) *mux.Router {
 	r.HandleFunc("/api/v1/health", h.HealthCheck).Methods("GET")
 	r.HandleFunc("/api/v1/metrics", h.Metrics).Methods("GET")
 
-	// Serve static files
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir(staticDir)))
 
 	return r

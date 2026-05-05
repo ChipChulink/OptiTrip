@@ -6,19 +6,17 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"optitrip/internal/cache"
-	"optitrip/internal/domain"
-	"optitrip/internal/optimizer"
-	"optitrip/internal/repository"
+	"optitrip/internal/core/domain"
+	"optitrip/internal/infra/optimizer"
 )
 
 type TripService struct {
-	placeRepo *repository.PlaceRepo
-	tripRepo  *repository.TripRepo
-	cache     *cache.Cache
+	placeRepo domain.PlaceRepository
+	tripRepo  domain.TripRepository
+	cache     domain.Cache
 }
 
-func NewTripService(pr *repository.PlaceRepo, tr *repository.TripRepo, c *cache.Cache) *TripService {
+func NewTripService(pr domain.PlaceRepository, tr domain.TripRepository, c domain.Cache) *TripService {
 	return &TripService{
 		placeRepo: pr,
 		tripRepo:  tr,
