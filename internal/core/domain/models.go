@@ -66,7 +66,7 @@ type TripRequest struct {
 	Pace            string     `gorm:"size:20" json:"pace"`
 	PreferencesJSON string     `gorm:"type:text" json:"preferences_json"`
 	ConstraintsJSON string     `gorm:"type:text" json:"constraints_json"`
-	RequestHash     string     `gorm:"size:64;index" json:"request_hash"`
+	RequestHash     string     `gorm:"size:200;index" json:"request_hash"`
 	CreatedAt       time.Time  `json:"created_at"`
 }
 

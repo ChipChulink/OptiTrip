@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"log"
+
 	"github.com/google/uuid"
 	"optitrip/internal/core/domain"
 )
@@ -22,8 +24,18 @@ func (r *PlaceRepo) GetByID(id uuid.UUID) (*domain.Place, error) {
 }
 
 func (r *PlaceRepo) GetByCity(cityID uuid.UUID) ([]domain.Place, error) {
+	log.Printf("[DEBUG] GetByCity called for city: %s", cityID)
 	var places []domain.Place
-	err := DB.Where("city_id = ? AND is_active = true", cityID).Preload("PlaceCategories").Find(&places).Error
+	err := DB.Preload("PlaceCategories").Where("city_id = ? AND is_active = true", cityID).Find(&places).Error
+	
+	// Load category info manually for each place
+	for i := range places {
+		var links []domain.PlaceCategory
+		DB.Where("place_id = ?", places[i].ID).Find(&links)
+		places[i].PlaceCategories = links
+	}
+	
+	log.Printf("[DEBUG] GetByCity found %d places", len(places))
 	return places, err
 }
 

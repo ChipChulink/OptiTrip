@@ -26,6 +26,8 @@ func SetupRouter(h *Handler) *mux.Router {
 	api.HandleFunc("/trips/{id}", h.GetTripPlan).Methods("GET")
 	api.HandleFunc("/trips/{id}/recalculate", h.RecalculateTrip).Methods("POST")
 
+	api.HandleFunc("/categories", h.GetCategories).Methods("GET")
+
 	r.HandleFunc("/api/v1/health", h.HealthCheck).Methods("GET")
 	r.HandleFunc("/api/v1/metrics", h.Metrics).Methods("GET")
 

@@ -4,7 +4,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// PlaceRepository defines the contract for place data access
 type PlaceRepository interface {
 	Create(place *Place) error
 	GetByID(id uuid.UUID) (*Place, error)
@@ -14,7 +13,6 @@ type PlaceRepository interface {
 	SetCategories(placeID uuid.UUID, categories []PlaceCategory) error
 }
 
-// CityRepository defines the contract for city data access
 type CityRepository interface {
 	Create(city *City) error
 	GetByID(id uuid.UUID) (*City, error)
@@ -24,7 +22,14 @@ type CityRepository interface {
 	Delete(id uuid.UUID) error
 }
 
-// TripRepository defines the contract for trip data access
+type CategoryRepository interface {
+	Create(category *Category) error
+	GetByID(id uuid.UUID) (*Category, error)
+	GetBySlug(slug string) (*Category, error)
+	List() ([]Category, error)
+	Delete(id uuid.UUID) error
+}
+
 type TripRepository interface {
 	CreateRequest(req *TripRequest) error
 	GetRequestByID(id uuid.UUID) (*TripRequest, error)
@@ -35,7 +40,6 @@ type TripRepository interface {
 	UpdatePlan(plan *TripPlan) error
 }
 
-// Cache defines the contract for caching mechanism
 type Cache interface {
 	Get(key string) (interface{}, bool)
 	Set(key string, value interface{})

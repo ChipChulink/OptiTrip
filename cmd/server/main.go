@@ -31,11 +31,13 @@ func main() {
 
 	cityRepo := repository.NewCityRepo()
 	placeRepo := repository.NewPlaceRepo()
+	categoryRepo := repository.NewCategoryRepo()
+
 	tripRepo := repository.NewTripRepo()
 	appCache := cache.New(cfg.CacheTTL)
 
-	tripService := service.NewTripService(placeRepo, tripRepo, appCache)
-	handler := api.NewHandler(tripService, cityRepo, placeRepo)
+	tripService := service.NewTripService(placeRepo, tripRepo, categoryRepo, appCache)
+	handler := api.NewHandler(tripService, cityRepo, placeRepo, categoryRepo)
 	router := api.SetupRouter(handler)
 
 	addr := fmt.Sprintf(":%s", cfg.AppPort)

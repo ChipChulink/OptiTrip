@@ -3,180 +3,411 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OptiTrip Client</title>
+    <title>OptiTrip - Оптимизация маршрута</title>
     <style>
         :root {
             --primary: #4f46e5;
-            --bg: #f9fafb;
+            --primary-hover: #4338ca;
+            --bg: #f3f4f6;
             --card: #ffffff;
             --text: #1f2937;
+            --text-light: #6b7280;
             --border: #e5e7eb;
+            --success: #10b981;
+            --danger: #ef4444;
         }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid var(--border); }
-        h2 { margin-top: 0; color: var(--primary); font-size: 1.25rem; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 0.9rem; }
-        input, select, textarea { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; }
-        button { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: opacity 0.2s; }
-        button:hover { opacity: 0.9; }
-        .result { margin-top: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; overflow-x: auto; }
-        .status { font-size: 0.8rem; margin-bottom: 10px; color: #6b7280; }
-        .full-width { grid-column: 1 / -1; }
-        .hidden { display: none; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 30px;
+        }
+        .card {
+            background: var(--card);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h2 {
+            margin-top: 0;
+            color: var(--primary);
+            font-size: 1.25rem;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--bg);
+            padding-bottom: 10px;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: background 0.2s;
+            width: 100%;
+        }
+        button:hover {
+            background: var(--primary-hover);
+        }
+        button:disabled {
+            background: var(--text-light);
+            cursor: not-allowed;
+        }
+        .categories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .category-item {
+            background: var(--bg);
+            padding: 12px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .category-name {
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        .category-slider {
+            width: 100%;
+        }
+        .category-value {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            text-align: right;
+        }
+        .result {
+            background: var(--bg);
+            padding: 20px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-family: 'Consolas', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            display: none;
+        }
+        .result.visible {
+            display: block;
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .result-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .stat {
+            background: var(--card);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        .stat-label {
+            color: var(--text-light);
+            font-size: 0.8rem;
+        }
+        .stat-value {
+            font-weight: 600;
+            color: var(--primary);
+        }
+        .day-block {
+            background: var(--card);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--primary);
+        }
+        .day-title {
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--primary);
+        }
+        .place-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .place-item:last-child {
+            border-bottom: none;
+        }
+        .place-name {
+            font-weight: 500;
+        }
+        .place-info {
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-light);
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="card">
-            <h2>1. Города</h2>
-            <div class="form-group">
-                <label>Название</label>
-                <input type="text" id="cityName" placeholder="Санкт-Петербург">
-            </div>
-            <div class="form-group">
-                <label>Страна</label>
-                <input type="text" id="cityCountry" placeholder="Россия">
-            </div>
-            <button onclick="createCity()">Создать город</button>
-            <div id="cityStatus" class="status"></div>
-        </div>
+        <h1>OptiTrip - Оптимизация туристического маршрута</h1>
 
         <div class="card">
-            <h2>2. Места</h2>
-            <div class="form-group">
-                <label>ID Города</label>
-                <input type="text" id="placeCityId" placeholder="uuid">
-            </div>
-            <div class="form-group">
-                <label>Название</label>
-                <input type="text" id="placeName" placeholder="Эрмитаж">
-            </div>
-            <div class="form-group">
-                <label>Тип (museum, food, etc)</label>
-                <input type="text" id="placeType" placeholder="museum">
-            </div>
-            <div class="form-group">
-                <label>Стоимость</label>
-                <input type="number" id="placeCost" value="1000">
-            </div>
-            <div class="form-group">
-                <label>Длительность (мин)</label>
-                <input type="number" id="placeDuration" value="180">
-            </div>
-            <div class="form-group">
-                <label>Рейтинг (0-5)</label>
-                <input type="number" step="0.1" id="placeRating" value="4.5">
-            </div>
-            <button onclick="createPlace()">Добавить место</button>
-            <div id="placeStatus" class="status"></div>
-        </div>
-
-        <div class="card full-width">
-            <h2>3. Оптимизация маршрута</h2>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+            <h2>Параметры поездки</h2>
+            <div class="form-row">
                 <div class="form-group">
-                    <label>ID Города</label>
-                    <input type="text" id="tripCityId" placeholder="uuid">
-                </div>
-                <div class="form-group">
-                    <label>Кол-во дней</label>
-                    <input type="number" id="tripDays" value="3">
-                </div>
-                <div class="form-group">
-                    <label>Бюджет</label>
-                    <input type="number" id="tripBudget" value="15000">
-                </div>
-                <div class="form-group">
-                    <label>Темп (relaxed, medium, intensive)</label>
-                    <select id="tripPace">
-                        <option value="relaxed">Спокойный</option>
-                        <option value="medium" selected>Средний</option>
-                        <option value="intensive">Насыщенный</option>
+                    <label>Город</label>
+                    <select id="citySelect">
+                        <option value="">Загрузка...</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Интересы (JSON)</label>
-                    <textarea id="tripInterests">[{"category":"museum","weight":0.9}]</textarea>
+                    <label>Количество дней</label>
+                    <input type="number" id="daysCount" value="3" min="1" max="14">
                 </div>
                 <div class="form-group">
-                    <label>Ограничения (JSON)</label>
-                    <textarea id="tripConstraints">{"max_places_per_day":4}</textarea>
+                    <label>Бюджет (руб)</label>
+                    <input type="number" id="budget" value="15000" min="0">
                 </div>
             </div>
-            <button onclick="optimizeTrip()">Рассчитать маршрут</button>
-            <div id="tripResult" class="result">Результат появится здесь...</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Максимум мест в день</label>
+                    <input type="number" id="maxPlaces" value="4" min="1" max="10">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Ваши интересы</h2>
+            <p style="color: var(--text-light); margin-bottom: 16px;">Переместите ползунок, чтобы указать важность категории (0 - неинтересно, 1 - очень важно)</p>
+            <div id="categoriesContainer" class="categories-grid">
+                <div class="loading">Загрузка категорий...</div>
+            </div>
+        </div>
+
+        <button onclick="calculateRoute()">Рассчитать оптимальный маршрут</button>
+
+        <div id="resultContainer" class="card" style="display: none; margin-top: 20px;">
+            <h2>✨ Результат</h2>
+            <div class="result-header">
+                <div class="result-stats" id="resultStats"></div>
+            </div>
+            <div id="resultDays"></div>
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                <strong>Пояснения:</strong>
+                <ul id="resultExplanation" style="margin: 8px 0 0 20px; color: var(--text-light);"></ul>
+            </div>
         </div>
     </div>
 
     <script>
         const API_BASE = '/api/v1';
+        let categories = [];
 
-        async function createCity() {
-            const data = {
-                name: document.getElementById('cityName').value,
-                country: document.getElementById('cityCountry').value
-            };
+        // Load categories on start
+        async function loadCities() {
             try {
-                const res = await fetch(`${API_BASE}/cities`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(data)
-                });
-                const json = await res.json();
-                document.getElementById('cityStatus').innerText = 'Создан! ID: ' + json.id;
-                document.getElementById('placeCityId').value = json.id;
-                document.getElementById('tripCityId').value = json.id;
+                const res = await fetch(`${API_BASE}/cities`);
+                const cities = await res.json();
+                const select = document.getElementById('citySelect');
+                select.innerHTML = cities.map(c => 
+                    `<option value="${c.id}">${c.name}</option>`
+                ).join('');
+                if (cities.length > 0) {
+                    select.value = cities[0].id;
+                }
             } catch (e) {
-                document.getElementById('cityStatus').innerText = 'Ошибка: ' + e;
+                console.error('Failed to load cities:', e);
             }
         }
 
-        async function createPlace() {
-            const data = {
-                city_id: document.getElementById('placeCityId').value,
-                name: document.getElementById('placeName').value,
-                type: document.getElementById('placeType').value,
-                base_cost: parseFloat(document.getElementById('placeCost').value),
-                avg_duration_minutes: parseInt(document.getElementById('placeDuration').value),
-                rating: parseFloat(document.getElementById('placeRating').value),
-                popularity_score: 0.8
-            };
+        async function loadCategories() {
             try {
-                const res = await fetch(`${API_BASE}/places`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(data)
-                });
-                const json = await res.json();
-                document.getElementById('placeStatus').innerText = 'Добавлено!';
+                const res = await fetch(`${API_BASE}/categories`);
+                categories = await res.json();
+                renderCategories();
             } catch (e) {
-                document.getElementById('placeStatus').innerText = 'Ошибка: ' + e;
+                document.getElementById('categoriesContainer').innerHTML = 
+                    '<p style="color: var(--danger);">Ошибка загрузки категорий: ' + e + '</p>';
             }
         }
 
-        async function optimizeTrip() {
-            const data = {
-                city_id: document.getElementById('tripCityId').value,
-                days_count: parseInt(document.getElementById('tripDays').value),
-                budget: parseFloat(document.getElementById('tripBudget').value),
-                pace: document.getElementById('tripPace').value,
-                interests: document.getElementById('tripInterests').value,
-                constraints: document.getElementById('tripConstraints').value
-            };
+        function renderCategories() {
+            const container = document.getElementById('categoriesContainer');
+            container.innerHTML = categories.map(cat => `
+                <div class="category-item">
+                    <span class="category-name">${cat.name}</span>
+                    <input type="range" class="category-slider" 
+                           id="weight_${cat.slug}" 
+                           min="0" max="1" step="0.1" value="0.5"
+                           onchange="updateSliderValue('${cat.slug}', this.value)">
+                    <span class="category-value" id="value_${cat.slug}">0.5</span>
+                </div>
+            `).join('');
+        }
+
+        function updateSliderValue(slug, value) {
+            document.getElementById(`value_${slug}`).textContent = value;
+        }
+
+        function buildInterestsJSON() {
+            const interests = categories
+                .filter(cat => {
+                    const val = parseFloat(document.getElementById(`weight_${cat.slug}`).value);
+                    return val > 0;
+                })
+                .map(cat => ({
+                    category: cat.slug,
+                    weight: parseFloat(document.getElementById(`weight_${cat.slug}`).value)
+                }));
+            return JSON.stringify(interests);
+        }
+
+        function buildConstraintsJSON() {
+            const maxPlaces = document.getElementById('maxPlaces').value;
+            return JSON.stringify({
+                max_places_per_day: parseInt(maxPlaces)
+            });
+        }
+
+        async function calculateRoute() {
+            const cityId = document.getElementById('citySelect').value;
+            if (!cityId) {
+                alert('Пожалуйста, выберите город');
+                return;
+            }
+
+            const btn = document.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = 'Расчёт...';
+
             try {
+                const data = {
+                    city_id: cityId,
+                    days_count: parseInt(document.getElementById('daysCount').value),
+                    budget: parseFloat(document.getElementById('budget').value),
+                    pace: "medium",
+                    interests: buildInterestsJSON(),
+                    constraints: buildConstraintsJSON()
+                };
+
                 const res = await fetch(`${API_BASE}/trips/optimize`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(data)
                 });
-                const json = await res.json();
-                document.getElementById('tripResult').innerText = JSON.stringify(json, null, 2);
+
+                if (!res.ok) {
+                    throw new Error('Ошибка расчёта: ' + res.status);
+                }
+
+                const result = await res.json();
+                displayResult(result);
             } catch (e) {
-                document.getElementById('tripResult').innerText = 'Ошибка: ' + e;
+                alert('Ошибка: ' + e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Рассчитать оптимальный маршрут';
             }
         }
+
+        function displayResult(result) {
+            const container = document.getElementById('resultContainer');
+            container.style.display = 'block';
+
+            // Stats
+            document.getElementById('resultStats').innerHTML = `
+                <div class="stat">
+                    <div class="stat-label">Общая стоимость</div>
+                    <div class="stat-value">${result.total_cost || result.TotalCost || 0} ₽</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Время (час)</div>
+                    <div class="stat-value">${Math.round((result.total_duration_minutes || result.TotalDurationMins || 0) / 60)}</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Оценка релевантности</div>
+                    <div class="stat-value">${result.utility_score || result.UtilityScore || 0}</div>
+                </div>
+            `;
+
+            // Days
+            const days = result.days || result.Days || [];
+            document.getElementById('resultDays').innerHTML = days.map(day => `
+                <div class="day-block">
+                    <div class="day-title">День ${day.day || day.Day}</div>
+                    ${(day.places || day.Places || []).map(place => `
+                        <div class="place-item">
+                            <div>
+                                <div class="place-name">${place.name || place.Name}</div>
+                                <div class="place-info">${place.category || place.Category || ''} • ${place.avg_duration_minutes || place.AvgDurationMins || 60} мин</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-weight: 600;">${place.base_cost || place.BaseCost || 0} ₽</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('');
+
+            // Explanation
+            const explanation = result.explanation || result.Explanation || [];
+            document.getElementById('resultExplanation').innerHTML = explanation.map(e => `<li>${e}</li>`).join('');
+
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Load categories on page load
+        loadCategories();
+        loadCities();
     </script>
 </body>
 </html>

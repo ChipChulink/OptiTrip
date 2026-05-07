@@ -12,16 +12,18 @@ import (
 )
 
 type Handler struct {
-	tripService *service.TripService
-	cityRepo    domain.CityRepository
-	placeRepo   domain.PlaceRepository
+	tripService    *service.TripService
+	cityRepo       domain.CityRepository
+	placeRepo      domain.PlaceRepository
+	categoryRepo   domain.CategoryRepository
 }
 
-func NewHandler(ts *service.TripService, cr domain.CityRepository, pr domain.PlaceRepository) *Handler {
+func NewHandler(ts *service.TripService, cr domain.CityRepository, pr domain.PlaceRepository, cat domain.CategoryRepository) *Handler {
 	return &Handler{
-		tripService: ts,
-		cityRepo:    cr,
-		placeRepo:   pr,
+		tripService:  ts,
+		cityRepo:     cr,
+		placeRepo:    pr,
+		categoryRepo: cat,
 	}
 }
 
@@ -83,12 +85,12 @@ func (h *Handler) GetPlaces(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) OptimizeTrip(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		CityID          string `json:"city_id"`
-		DaysCount       int    `json:"days_count"`
-		Budget          float64 `json:"budget"`
-		Pace            string `json:"pace"`
-		Interests       string `json:"interests"`
-		Constraints     string `json:"constraints"`
+		CityID      string `json:"city_id"`
+		DaysCount   int    `json:"days_count"`
+		Budget      float64 `json:"budget"`
+		Pace        string `json:"pace"`
+		Interests   string `json:"interests"`
+		Constraints string `json:"constraints"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -109,7 +111,34 @@ func (h *Handler) OptimizeTrip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(plan)
+	log.Printf("[DEBUG] Handler received plan with cost: %.2f, days_json length: %d", plan.TotalCost, len(plan.DaysJSON))
+
+	var days []interface{}
+	if plan.DaysJSON != "" {
+		if err := json.Unmarshal([]byte(plan.DaysJSON), &days); err != nil {
+			log.Printf("[WARNING] Failed to parse days: %v", err)
+		}
+	}
+
+	var explanation []string
+	if plan.ExplanationJSON != "" {
+		if err := json.Unmarshal([]byte(plan.ExplanationJSON), &explanation); err != nil {
+			log.Printf("[WARNING] Failed to parse explanation: %v", err)
+		}
+	}
+
+	resp := map[string]interface{}{
+		"id":                     plan.ID,
+		"total_cost":             plan.TotalCost,
+		"total_duration_minutes": plan.TotalDurationMins,
+		"utility_score":          plan.UtilityScore,
+		"days":                   days,
+		"explanation":            explanation,
+	}
+
+	log.Printf("[DEBUG] Sending response with %d days", len(days))
+
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handler) GetTripPlan(w http.ResponseWriter, r *http.Request) {
@@ -157,4 +186,13 @@ func (h *Handler) Metrics(w http.ResponseWriter, r *http.Request) {
 		"cache_hits":   hits,
 		"cache_misses": misses,
 	})
+}
+
+func (h *Handler) GetCategories(w http.ResponseWriter, r *http.Request) {
+	categories, err := h.categoryRepo.List()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(categories)
 }

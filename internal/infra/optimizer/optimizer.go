@@ -2,9 +2,11 @@ package optimizer
 
 import (
 	"encoding/json"
+	"log"
 	"math"
 	"sort"
 
+	"github.com/google/uuid"
 	"optitrip/internal/core/domain"
 )
 
@@ -14,9 +16,16 @@ type PlaceScore struct {
 	DayIndex  int
 }
 
+type PlaceOutput struct {
+	Name             string  `json:"name"`
+	Category         string  `json:"category"`
+	AvgDurationMins  int     `json:"avg_duration_minutes"`
+	BaseCost         float64 `json:"base_cost"`
+}
+
 type TripDay struct {
 	Day       int
-	Places    []domain.Place
+	Places    []PlaceOutput
 	TotalCost float64
 	TotalTime int
 }
@@ -51,21 +60,39 @@ func CalculateRoute(
 ) *OptimizationResult {
 
 	interests := parseInterests(interestsJSON)
+	log.Printf("[DEBUG] Interests parsed: %v", interests)
 	constraints := parseConstraints(constraintsJSON)
 
-	filtered := filterPlaces(places, constraints)
+	catMap := make(map[uuid.UUID]string)
+	for _, c := range categories {
+		catMap[c.ID] = c.Slug
+		log.Printf("[DEBUG] Category ID=%s -> Slug=%s", c.ID, c.Slug)
+	}
+
+	if len(places) > 0 && len(places[0].PlaceCategories) > 0 {
+		log.Printf("[DEBUG] First place has %d categories", len(places[0].PlaceCategories))
+		for _, pc := range places[0].PlaceCategories {
+			log.Printf("[DEBUG] PlaceCategory: PlaceID=%s, CategoryID=%s", pc.PlaceID, pc.CategoryID)
+		}
+	}
+
+	filtered := filterPlaces(places, constraints, catMap)
+	log.Printf("[DEBUG] Filtered places: %d (from %d)", len(filtered), len(places))
 
 	scored := make([]PlaceScore, 0, len(filtered))
 	for _, place := range filtered {
-		score := calculateRelevanceScore(place, interests)
+		score := calculateRelevanceScore(place, interests, catMap)
 		scored = append(scored, PlaceScore{Place: place, Score: score})
+		if score > 0.5 {
+			log.Printf("[DEBUG] Place '%s' score=%.2f (categories: %d)", place.Name, score, len(place.PlaceCategories))
+		}
 	}
 
 	sort.Slice(scored, func(i, j int) bool {
 		return scored[i].Score > scored[j].Score
 	})
 
-	selection := greedySelect(scored, daysCount, budget, pace, constraints)
+	selection := greedySelect(scored, daysCount, budget, pace, constraints, catMap)
 
 	explanation := buildExplanation(selection.Days, interests, constraints)
 
@@ -103,13 +130,20 @@ func parseConstraints(jsonStr string) Constraints {
 	return c
 }
 
-func filterPlaces(places []domain.Place, constraints Constraints) []domain.Place {
+func filterPlaces(places []domain.Place, constraints Constraints, catMap map[uuid.UUID]string) []domain.Place {
 	filtered := make([]domain.Place, 0)
 	for _, place := range places {
 		hasExcluded := false
-		for _, cat := range constraints.ExcludeCategories {
-			if cat == place.Type {
-				hasExcluded = true
+		for _, pc := range place.PlaceCategories {
+			if catSlug, ok := catMap[pc.CategoryID]; ok {
+				for _, excl := range constraints.ExcludeCategories {
+					if catSlug == excl {
+						hasExcluded = true
+						break
+					}
+				}
+			}
+			if hasExcluded {
 				break
 			}
 		}
@@ -120,15 +154,18 @@ func filterPlaces(places []domain.Place, constraints Constraints) []domain.Place
 	return filtered
 }
 
-func calculateRelevanceScore(place domain.Place, interests map[string]float64) float64 {
+func calculateRelevanceScore(place domain.Place, interests map[string]float64, catMap map[uuid.UUID]string) float64 {
 	score := 0.0
 
-	if weight, ok := interests[place.Type]; ok {
-		score += weight * 0.5
+	for _, pc := range place.PlaceCategories {
+		if catSlug, ok := catMap[pc.CategoryID]; ok {
+			if userWeight, ok := interests[catSlug]; ok {
+				score += userWeight * pc.Weight * 0.5
+			}
+		}
 	}
 
 	score += (place.Rating / 5.0) * 0.2
-
 	score += place.PopularityScore * 0.15
 
 	if place.BaseCost > 0 {
@@ -142,7 +179,7 @@ func calculateRelevanceScore(place domain.Place, interests map[string]float64) f
 	return score
 }
 
-func greedySelect(scored []PlaceScore, daysCount int, budget float64, pace string, constraints Constraints) *struct {
+func greedySelect(scored []PlaceScore, daysCount int, budget float64, pace string, constraints Constraints, catMap map[uuid.UUID]string) *struct {
 	Days      []TripDay
 	TotalCost float64
 	TotalTime int
@@ -175,7 +212,21 @@ func greedySelect(scored []PlaceScore, daysCount int, budget float64, pace strin
 				continue
 			}
 
-			day.Places = append(day.Places, ps.Place)
+			categoryName := "other"
+			if len(ps.Place.PlaceCategories) > 0 {
+				if catSlug, ok := catMap[ps.Place.PlaceCategories[0].CategoryID]; ok {
+					categoryName = catSlug
+				}
+			}
+
+			placeOutput := PlaceOutput{
+				Name:            ps.Place.Name,
+				Category:       categoryName,
+				AvgDurationMins: ps.Place.AvgDurationMins,
+				BaseCost:       ps.Place.BaseCost,
+			}
+
+			day.Places = append(day.Places, placeOutput)
 			day.TotalCost += ps.Place.BaseCost
 			day.TotalTime += ps.Place.AvgDurationMins
 			totalCost += ps.Place.BaseCost
