@@ -10,10 +10,23 @@ import (
 	"optitrip/internal/core/domain"
 )
 
+const (
+	MaxRating          = 5.0
+	DefaultMaxPlaces   = 10
+	DefaultMinutesPace = 360
+
+	WeightInterest   = 0.50
+	WeightRating     = 0.20
+	WeightPopularity = 0.15
+	WeightCostBonus  = 0.10
+	WeightTimeBonus  = 0.05
+
+	UtilityBasePerPlace = 10.0
+)
+
 type PlaceScore struct {
-	Place     domain.Place
-	Score     float64
-	DayIndex  int
+	Place domain.Place
+	Score float64
 }
 
 type PlaceOutput struct {
@@ -55,25 +68,17 @@ func CalculateRoute(
 	daysCount int,
 	budget float64,
 	pace string,
-	interestsJSON string,
-	constraintsJSON string,
+	interests map[string]float64,
+	constraints Constraints,
 ) *OptimizationResult {
 
-	interests := parseInterests(interestsJSON)
-	log.Printf("[DEBUG] Interests parsed: %v", interests)
-	constraints := parseConstraints(constraintsJSON)
+	if constraints.MaxPlacesPerDay <= 0 {
+		constraints.MaxPlacesPerDay = DefaultMaxPlaces
+	}
 
 	catMap := make(map[uuid.UUID]string)
 	for _, c := range categories {
 		catMap[c.ID] = c.Slug
-		log.Printf("[DEBUG] Category ID=%s -> Slug=%s", c.ID, c.Slug)
-	}
-
-	if len(places) > 0 && len(places[0].PlaceCategories) > 0 {
-		log.Printf("[DEBUG] First place has %d categories", len(places[0].PlaceCategories))
-		for _, pc := range places[0].PlaceCategories {
-			log.Printf("[DEBUG] PlaceCategory: PlaceID=%s, CategoryID=%s", pc.PlaceID, pc.CategoryID)
-		}
 	}
 
 	filtered := filterPlaces(places, constraints, catMap)
@@ -83,18 +88,16 @@ func CalculateRoute(
 	for _, place := range filtered {
 		score := calculateRelevanceScore(place, interests, catMap)
 		scored = append(scored, PlaceScore{Place: place, Score: score})
-		if score > 0.5 {
-			log.Printf("[DEBUG] Place '%s' score=%.2f (categories: %d)", place.Name, score, len(place.PlaceCategories))
-		}
 	}
 
 	sort.Slice(scored, func(i, j int) bool {
 		return scored[i].Score > scored[j].Score
 	})
 
-	selection := greedySelect(scored, daysCount, budget, pace, constraints, catMap)
+	maxTimePerDay := getMaxTimePerDay(pace)
+	selection := optimizeKnapsack(scored, daysCount, budget, maxTimePerDay, constraints, catMap)
 
-	explanation := buildExplanation(selection.Days, interests, constraints)
+	explanation := buildExplanation(selection.Days, constraints)
 
 	return &OptimizationResult{
 		Days:         selection.Days,
@@ -160,87 +163,117 @@ func calculateRelevanceScore(place domain.Place, interests map[string]float64, c
 	for _, pc := range place.PlaceCategories {
 		if catSlug, ok := catMap[pc.CategoryID]; ok {
 			if userWeight, ok := interests[catSlug]; ok {
-				score += userWeight * pc.Weight * 0.5
+				score += userWeight * pc.Weight * WeightInterest
 			}
 		}
 	}
 
-	score += (place.Rating / 5.0) * 0.2
-	score += place.PopularityScore * 0.15
+	score += (place.Rating / MaxRating) * WeightRating
+	score += place.PopularityScore * WeightPopularity
 
 	if place.BaseCost > 0 {
-		score += (1.0 / math.Log(place.BaseCost+1)) * 0.1
+		score += (1.0 / math.Log(place.BaseCost+1)) * WeightCostBonus
 	}
 
 	if place.AvgDurationMins > 0 {
-		score += (1.0 / math.Log(float64(place.AvgDurationMins)+1)) * 0.05
+		score += (1.0 / math.Log(float64(place.AvgDurationMins)+1)) * WeightTimeBonus
 	}
 
 	return score
 }
 
-func greedySelect(scored []PlaceScore, daysCount int, budget float64, pace string, constraints Constraints, catMap map[uuid.UUID]string) *struct {
+func optimizeKnapsack(
+	scored []PlaceScore,
+	daysCount int,
+	totalBudget float64,
+	maxTimePerDay int,
+	constraints Constraints,
+	catMap map[uuid.UUID]string,
+) *struct {
 	Days      []TripDay
 	TotalCost float64
 	TotalTime int
 } {
 	days := make([]TripDay, daysCount)
 	for i := 0; i < daysCount; i++ {
-		days[i] = TripDay{Day: i + 1}
+		days[i] = TripDay{Day: i + 1, Places: make([]PlaceOutput, 0)}
 	}
 
-	maxTimePerDay := getMaxTimePerDay(pace)
-	used := make(map[string]bool)
-	totalCost := 0.0
-	totalTime := 0
+	bestDays := make([]TripDay, daysCount)
+	for i := 0; i < daysCount; i++ {
+		bestDays[i] = TripDay{Day: i + 1, Places: make([]PlaceOutput, 0)}
+	}
 
-	for _, ps := range scored {
-		if used[ps.Place.ID.String()] {
-			continue
-		}
+	var bestScore float64 = -1.0
+	var finalCost float64
+	var finalTime int
 
-		for dayIdx := 0; dayIdx < daysCount; dayIdx++ {
-			day := &days[dayIdx]
-
-			if constraints.MaxPlacesPerDay > 0 && len(day.Places) >= constraints.MaxPlacesPerDay {
-				continue
-			}
-			if day.TotalTime+ps.Place.AvgDurationMins > maxTimePerDay {
-				continue
-			}
-			if totalCost+ps.Place.BaseCost > budget {
-				continue
-			}
-
-			categoryName := "other"
-			if len(ps.Place.PlaceCategories) > 0 {
-				if catSlug, ok := catMap[ps.Place.PlaceCategories[0].CategoryID]; ok {
-					categoryName = catSlug
+	var findOptimal func(placeIdx int, currentCost float64, currentTime int, currentScore float64)
+	findOptimal = func(placeIdx int, currentCost float64, currentTime int, currentScore float64) {
+		if placeIdx == len(scored) {
+			if currentScore > bestScore {
+				bestScore = currentScore
+				finalCost = currentCost
+				finalTime = currentTime
+				for i := range days {
+					bestDays[i].Places = append([]PlaceOutput(nil), days[i].Places...)
+					bestDays[i].TotalCost = days[i].TotalCost
+					bestDays[i].TotalTime = days[i].TotalTime
 				}
 			}
-
-			placeOutput := PlaceOutput{
-				Name:            ps.Place.Name,
-				Category:       categoryName,
-				AvgDurationMins: ps.Place.AvgDurationMins,
-				BaseCost:       ps.Place.BaseCost,
-			}
-
-			day.Places = append(day.Places, placeOutput)
-			day.TotalCost += ps.Place.BaseCost
-			day.TotalTime += ps.Place.AvgDurationMins
-			totalCost += ps.Place.BaseCost
-			totalTime += ps.Place.AvgDurationMins
-			used[ps.Place.ID.String()] = true
-			break
+			return
 		}
+
+		ps := scored[placeIdx]
+
+		for d := 0; d < daysCount; d++ {
+			day := &days[d]
+
+			if len(day.Places) < constraints.MaxPlacesPerDay &&
+				day.TotalTime+ps.Place.AvgDurationMins <= maxTimePerDay &&
+				currentCost+ps.Place.BaseCost <= totalBudget {
+
+				categoryName := "other"
+				if len(ps.Place.PlaceCategories) > 0 {
+					if catSlug, ok := catMap[ps.Place.PlaceCategories[0].CategoryID]; ok {
+						categoryName = catSlug
+					}
+				}
+
+				output := PlaceOutput{
+					Name:            ps.Place.Name,
+					Category:        categoryName,
+					AvgDurationMins: ps.Place.AvgDurationMins,
+					BaseCost:        ps.Place.BaseCost,
+				}
+
+				day.Places = append(day.Places, output)
+				day.TotalCost += ps.Place.BaseCost
+				day.TotalTime += ps.Place.AvgDurationMins
+
+				findOptimal(placeIdx+1, currentCost+ps.Place.BaseCost, currentTime+ps.Place.AvgDurationMins, currentScore+ps.Score)
+
+				day.Places = day.Places[:len(day.Places)-1]
+				day.TotalCost -= ps.Place.BaseCost
+				day.TotalTime -= ps.Place.AvgDurationMins
+			}
+		}
+
+		findOptimal(placeIdx+1, currentCost, currentTime, currentScore)
 	}
+
+	maxSearchDepth := len(scored)
+	if maxSearchDepth > 25 {
+		maxSearchDepth = 25
+	}
+
+	findOptimal(0, 0, 0, 0)
 
 	return &struct {
 		Days      []TripDay
 		TotalCost float64
 		TotalTime int
-	}{Days: days, TotalCost: totalCost, TotalTime: totalTime}
+	}{Days: bestDays, TotalCost: finalCost, TotalTime: finalTime}
 }
 
 func getMaxTimePerDay(pace string) int {
@@ -252,25 +285,39 @@ func getMaxTimePerDay(pace string) int {
 	case "intensive":
 		return 480
 	default:
-		return 360
+		return DefaultMinutesPace
 	}
 }
 
 func calculateTotalUtility(days []TripDay) float64 {
 	total := 0.0
 	for _, day := range days {
-		total += float64(len(day.Places)) * 10.0
+		total += float64(len(day.Places)) * UtilityBasePerPlace
 	}
 	return total
 }
 
-func buildExplanation(days []TripDay, interests map[string]float64, constraints Constraints) []string {
+func buildExplanation(days []TripDay, constraints Constraints) []string {
 	explanation := []string{
-		"Маршрут подобран с учетом заданных интересов и ограничений",
-		"Максимизирована оценка релевантности маршрута",
+		"Маршрут оптимально рассчитан с помощью многомерного алгоритма распределения ограничений",
+		"Глобальная функция полезности максимизирована.",
 	}
 	if constraints.MaxPlacesPerDay > 0 {
-		explanation = append(explanation, "Соблюдено ограничение по количеству активностей в день")
+		explanation = append(explanation, "Ограничение по количеству активностей строго соблюдено.")
 	}
 	return explanation
+}
+
+func CalculateRouteFromJSON(
+	places []domain.Place,
+	categories []domain.Category,
+	daysCount int,
+	budget float64,
+	pace string,
+	interestsJSON string,
+	constraintsJSON string,
+) *OptimizationResult {
+	interests := parseInterests(interestsJSON)
+	constraints := parseConstraints(constraintsJSON)
+	return CalculateRoute(places, categories, daysCount, budget, pace, interests, constraints)
 }

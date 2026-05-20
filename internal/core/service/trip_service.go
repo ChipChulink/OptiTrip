@@ -55,7 +55,7 @@ func (s *TripService) CalculateRoute(cityID uuid.UUID, daysCount int, budget flo
 	log.Printf("[DEBUG] Got %d categories", len(categories))
 
 	log.Printf("[DEBUG] Starting optimizer...")
-	result := optimizer.CalculateRoute(places, categories, daysCount, budget, pace, interestsJSON, constraintsJSON)
+	result := optimizer.CalculateRouteFromJSON(places, categories, daysCount, budget, pace, interestsJSON, constraintsJSON)
 	log.Printf("[DEBUG] Optimizer finished, selected %d days", len(result.Days))
 
 	daysJSON, _ := json.Marshal(result.Days)
